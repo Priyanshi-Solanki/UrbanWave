@@ -1,0 +1,597 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}  
+\usepackage{caption} 
+
+\definecolor{codebg}{RGB}{255, 253, 240} 
+\definecolor{codeframe}{RGB}{200, 160, 100} 
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{codebg},
+    frame=single,
+    rulecolor=\color{codeframe},
+    numbers=left,
+    numberstyle=\tiny,
+    stepnumber=1,
+    numbersep=5pt,
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    breakatwhitespace=true,
+    showstringspaces=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+
+\geometry{margin=1in}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{UrbanWave Assignment}
+\lhead{Big Data Analysis}
+\rfoot{\thepage}
+
+\begin{document}
+
+\begin{center}
+    \Huge \textbf{UrbanWave MongoDB Assignment} \\
+    \vspace{0.5cm}
+    \Large \textbf{MongoDB Social Media Platform Project} \\
+    \vspace{1cm}
+    Course: Big Data Analysis \\
+    Professor: Arjun Vankani \\
+    \vspace{0.5cm}
+    Assignment Duration: 2 Weeks \\
+    Total Points: 50 \\
+    Academic Year: 2024--2025 \\
+    \vspace{2cm}
+    \Large \textbf{Submitted by:} \\
+    Priyanshi Solanki \\
+    Roll Number: 1AUA22BCS063 \\
+    \vspace{1cm}
+    Submission Date: September 10, 2025 \\
+\end{center}
+
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Assignment Overview}
+\subsection{Learning Objectives}
+This assignment focuses on designing and implementing a NoSQL database for a social media platform called \textbf{UrbanWave}. Key learning goals include:
+\begin{itemize}
+    \item Design NoSQL schema for a social media platform
+    \item Implement MongoDB CRUD operations
+    \item Apply geospatial queries for location-based features
+    \item Use aggregation framework for data analysis
+    \item Create indexes for performance optimization
+    \item Handle real-world social media scenarios
+\end{itemize}
+
+\subsection{Platform Features Implemented}
+The \textbf{UrbanWave} platform implements:
+\begin{itemize}
+    \item User profiles with Gujarat-based locations
+    \item Posts and Reels with different content categories
+    \item Following/Follower relationships
+    \item Location-based user discovery
+    \item Interest-based user recommendations
+    \item Content analytics and trending features
+\end{itemize}
+
+\section{Phase 1: Database Setup and Data Population}
+\subsection{Task 1.1: Create Database and Collections (10 points)}
+\textbf{Problem:} Create a MongoDB database named \textbf{UrbanWave} with the following collections: \texttt{users}, \texttt{posts}, \texttt{followers}. Implement proper data validation for each collection using MongoDB schema validation.  
+
+\textbf{Solution Code:}
+
+\begin{center}
+\textbf{1 Users Collection Creation with Validation}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+use UrbanWave
+db.createCollection("users", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["username","fullName","email","age","interests","location","screenTime","isActive","createdAt","lastSeen"],
+      properties: {
+        username: { bsonType: "string", description: "unique username (3-30 chars)" },
+        fullName: { bsonType: "string" },
+        email: { bsonType: "string", pattern: "^.+@.+\\..+$" },
+        age: { bsonType: "int", minimum: 13, maximum: 100 },
+        bio: { bsonType: "string" },
+        interests: { bsonType: "array", items: { bsonType: "string" } },
+        location: { 
+          bsonType: "object",
+          description: "GeoJSON Point with coordinates and city",
+          required: ["type","coordinates"],
+          properties: {
+            type: { enum: ["Point"] },
+            coordinates: {
+              bsonType: "array",
+              minItems: 2,
+              maxItems: 2,
+              items: { bsonType: "double" }
+            },
+            city: { bsonType: "string" },
+            state: { bsonType: "string" }
+          }
+        },
+        screenTime: { bsonType: "int" },
+        followersCount: { bsonType: "int" },
+        followingCount: { bsonType: "int" },
+        isActive: { bsonType: "bool" },
+        createdAt: { bsonType: "date" },
+        lastSeen: { bsonType: "date" }
+      }
+    }
+  }
+});
+\end{lstlisting}
+
+\begin{center}
+\textbf{2 Posts Collection Creation with Validation}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+db.createCollection("posts", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["userId","type","content","createdAt"],
+      properties: {
+        userId: { bsonType: "objectId" },
+        type: { enum: ["post","reel"] },
+        content: { bsonType: "string" },
+        caption: { bsonType: "string" },
+        hashtags: { bsonType: "array", items: { bsonType: "string" } },
+        location: {
+          bsonType: "object",
+          properties: {
+            type: { enum: ["Point"] },
+            coordinates: {
+              bsonType: "array",
+              minItems: 2,
+              maxItems: 2,
+              items: { bsonType: "double" }
+            },
+            city: { bsonType: "string" }
+          }
+        },
+        likes: { bsonType: "int" },
+        comments: { bsonType: "int" },
+        shares: { bsonType: "int" },
+        views: { bsonType: "int" },
+        createdAt: { bsonType: "date" }
+      }
+    }
+  }
+});
+\end{lstlisting}
+
+\begin{center}
+\textbf{3 Followers Collection Creation with Validation}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+db.createCollection("followers", {
+  validator: {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["followerId","followingId","createdAt"],
+      properties: {
+        followerId: { bsonType: "objectId" },
+        followingId: { bsonType: "objectId" },
+        createdAt: { bsonType: "date" }
+      }
+    }
+  }
+});
+\end{lstlisting}
+
+\begin{center}
+\textbf{4 Indexes}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+db.users.createIndex({ username: 1 }, { unique: true });
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ location: "2dsphere" });
+db.users.createIndex({ followersCount: -1 });
+
+db.posts.createIndex({ userId: 1 });
+db.posts.createIndex({ type: 1, likes: -1 });
+db.posts.createIndex({ createdAt: -1 });
+db.posts.createIndex({ "location": "2dsphere" });
+
+db.followers.createIndex({ followerId: 1 });
+db.followers.createIndex({ followingId: 1 });
+\end{lstlisting}
+\textbf{Solution Output}
+All three collections (\textbf{users}, \textbf{posts}, and \textbf{followers}) were successfully created with proper schema validation, and the necessary indexes were implemented to ensure optimal database performance.
+
+\begin{center}
+\includegraphics[width=0.8\textwidth]{images/1.PNG} 
+\captionof{figure}{Index creation verification in MongoDB shell}
+\end{center}
+
+\subsection{Task 1.2: Insert Sample Data (15 points)}
+\textbf{Problem:} Using the provided tables, create and insert 7 users with complete profile information, 10 posts/reels distributed among users, and 15 follower relationships to create a social network.
+
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+
+const now = new Date();
+const users = [
+  { username: "ananya_foodie", fullName: "Ananya Iyer", email: "ananya.iyer@urbanwave.in", age: 23, bio: "Food lover & home cook", interests: ["food","cooking","travel"], location: { type: "Point", coordinates: cities["Vadodara"], city: "Vadodara", state:"Gujarat" }, screenTime: 95, followersCount: 120, followingCount: 80, isActive: true, createdAt: now, lastSeen: now },
+  { username: "arjun_yoga", fullName: "Arjun Verma", email: "arjun.verma@urbanwave.in", age: 28, bio: "Yoga & wellness", interests: ["fitness","health","sports"], location: { type: "Point", coordinates: cities["Rajkot"], city: "Rajkot", state:"Gujarat" }, screenTime: 80, followersCount: 85, followingCount: 90, isActive: true, createdAt: now, lastSeen: now },
+  { username: "meera_fun", fullName: "Meera Joshi", email: "meera.joshi@urbanwave.in", age: 22, bio: "Making people laugh", interests: ["comedy","entertainment","memes"], location: { type: "Point", coordinates: cities["Ahmedabad"], city: "Ahmedabad", state:"Gujarat" }, screenTime: 200, followersCount: 250, followingCount: 60, isActive: true, createdAt: now, lastSeen: now },
+  { username: "amit_travels", fullName: "Amit Deshmukh", email: "amit.deshmukh@urbanwave.in", age: 30, bio: "Travel photographer", interests: ["travel","photography","nature"], location: { type: "Point", coordinates: cities["Surat"], city: "Surat", state:"Gujarat" }, screenTime: 110, followersCount: 320, followingCount: 150, isActive: true, createdAt: now, lastSeen: now },
+  { username: "kavya_books", fullName: "Kavya Nair", email: "kavya.nair@urbanwave.in", age: 26, bio: "Books & learning", interests: ["education","books","learning"], location: { type: "Point", coordinates: cities["Jamnagar"], city: "Jamnagar", state:"Gujarat" }, screenTime: 150, followersCount: 42, followingCount: 30, isActive: true, createdAt: now, lastSeen: now },
+  { username: "dev_coder", fullName: "Devansh Mehta", email: "devansh.mehta@urbanwave.in", age: 24, bio: "Coding & gadgets", interests: ["technology","coding","gadgets"], location: { type: "Point", coordinates: cities["Bhavnagar"], city: "Bhavnagar", state:"Gujarat" }, screenTime: 180, followersCount: 60, followingCount: 110, isActive: true, createdAt: now, lastSeen: now },
+  { username: "riya_style", fullName: "Riya Shah", email: "riya.shah@urbanwave.in", age: 21, bio: "Fashion & lifestyle", interests: ["fashion","beauty","lifestyle"], location: { type: "Point", coordinates: cities["Vadodara"], city: "Vadodara", state:"Gujarat" }, screenTime: 250, followersCount: 410, followingCount: 190, isActive: true, createdAt: now, lastSeen: now }
+];
+
+const inserted = db.users.insertMany(users);
+const uids = Object.values(inserted.insertedIds); 
+
+const cities = {
+  "Ahmedabad": [72.5714, 23.0225],
+  "Surat": [72.8777, 21.1702],
+  "Vadodara": [73.2081, 22.3072],
+  "Rajkot": [70.7833, 22.3039],
+  "Jamnagar": [71.1924, 22.2587],
+  "Bhavnagar": [70.4579, 21.5222],
+  "Dwarka": [68.9685, 22.2442]
+};
+
+\end{lstlisting}
+
+\begin{center}
+\textbf{Users and Cities Data Insertion}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+const posts = [
+  { userId: uids[0], type: "post", content: "food", caption: "My favorite burger", hashtags: ["#burger","#food"], location: { type:"Point", coordinates: cities["Vadodara"], city:"Vadodara" }, likes: 90, comments: 12, shares: 6, views: 0, createdAt: new Date(now.getTime() - 5*24*3600*1000) },
+  { userId: uids[1], type: "post", content: "wellness", caption: "Morning yoga session!", hashtags: ["#yoga","#wellness"], likes: 50, comments: 7, shares: 3, views: 0, createdAt: new Date(now.getTime() - 10*24*3600*1000) },
+  { userId: uids[2], type: "reel", content: "comedy", caption: "Funny skit", hashtags: ["#funny","#meme"], location: { type:"Point", coordinates: cities["Ahmedabad"], city:"Ahmedabad" }, likes: 410, comments: 65, shares: 42, views: 5200, createdAt: new Date(now.getTime() - 2*24*3600*1000) },
+  { userId: uids[3], type: "reel", content: "travel", caption: "Exploring the coastline", hashtags: ["#travel","#explore"], location: { type:"Point", coordinates: cities["Surat"], city:"Surat" }, likes: 230, comments: 32, shares: 12, views: 8200, createdAt: new Date(now.getTime() - 20*24*3600*1000) },
+  { userId: uids[4], type: "post", content: "education", caption: "Must-read books", hashtags: ["#books","#reading"], likes: 65, comments: 9, shares: 2, views: 0, createdAt: new Date(now.getTime() - 1*24*3600*1000) },
+  { userId: uids[5], type: "post", content: "technology", caption: "Latest gadget review", hashtags: ["#gadgets","#tech"], likes: 100, comments: 13, shares: 5, views: 0, createdAt: new Date(now.getTime() - 3*24*3600*1000) },
+  { userId: uids[6], type: "reel", content: "fashion", caption: "Style of the day", hashtags: ["#style","#fashionista"], location: { type:"Point", coordinates: cities["Vadodara"], city:"Vadodara" }, likes: 510, comments: 85, shares: 65, views: 10200, createdAt: new Date(now.getTime() - 4*24*3600*1000) },
+  { userId: uids[0], type: "reel", content: "food", caption: "Burger street tour", hashtags: ["#streetfood","#burgerlove"], location: { type:"Point", coordinates: cities["Vadodara"], city:"Vadodara" }, likes: 155, comments: 22, shares: 8, views: 3200, createdAt: new Date(now.getTime() - 15*24*3600*1000) },
+  { userId: uids[3], type: "post", content: "photography", caption: "Cloudy monsoon", hashtags: ["#nature","#clouds"], likes: 185, comments: 24, shares: 6, views: 0, createdAt: new Date(now.getTime() - 8*24*3600*1000) },
+  { userId: uids[5], type: "reel", content: "tech", caption: "Dev tips", hashtags: ["#coding","#devlife"], location: { type:"Point", coordinates: cities["Bhavnagar"], city:"Bhavnagar" }, likes: 95, comments: 11, shares: 7, views: 1300, createdAt: new Date(now.getTime() - 7*24*3600*1000) }
+];
+db.posts.insertMany(posts);
+\end{lstlisting}
+
+\begin{center}
+\textbf{Posts Data Insertion}
+\end{center}
+
+\begin{lstlisting}[language=JavaScript]
+const followDocs = [
+  { followerId: uids[0], followingId: uids[2], createdAt: now },
+  { followerId: uids[0], followingId: uids[6], createdAt: now },
+  { followerId: uids[1], followingId: uids[3], createdAt: now },
+  { followerId: uids[2], followingId: uids[3], createdAt: now },
+  { followerId: uids[2], followingId: uids[6], createdAt: now },
+  { followerId: uids[3], followingId: uids[6], createdAt: now },
+  { followerId: uids[3], followingId: uids[4], createdAt: now },
+  { followerId: uids[4], followingId: uids[0], createdAt: now },
+  { followerId: uids[5], followingId: uids[3], createdAt: now },
+  { followerId: uids[6], followingId: uids[3], createdAt: now },
+  { followerId: uids[5], followingId: uids[6], createdAt: now },
+  { followerId: uids[1], followingId: uids[0], createdAt: now },
+  { followerId: uids[0], followingId: uids[5], createdAt: now },
+  { followerId: uids[6], followingId: uids[0], createdAt: now },
+  { followerId: uids[4], followingId: uids[5], createdAt: now },
+  { followerId: uids[2], followingId: uids[1], createdAt: now },
+  { followerId: uids[3], followingId: uids[0], createdAt: now },
+  { followerId: uids[1], followingId: uids[6], createdAt: now },
+  { followerId: uids[5], followingId: uids[2], createdAt: now }
+];
+db.followers.insertMany(followDocs);
+\end{lstlisting}
+
+\begin{center}
+\textbf{Followers Relationships Insertion}
+\end{center}
+\textbf{Solution Output:} Successfully inserted 7 users, 10 posts/reels, and 15 follower relationships into the respective collections with proper GeoJSON location formatting.
+
+\section{Phase 2: Basic DB Operations}
+\subsection{Task 2.1: CRUD Operations}
+\subsubsection{1. Find all users from a specific city}
+\textbf{Problem:} Find all users from Bhavanagar city.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ "location.city": "Bhavnagar" });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image1.PNG}
+\end{center}
+\textbf{Solution Output:} Return user Devansh Mehta located in Bhavnagar.
+
+\subsubsection{2. Find users younger than 25 years}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ age: { $lt: 25 } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image21.PNG}
+\includegraphics[width=0.7\textwidth]{images/image22.PNG}
+\includegraphics[width=0.7\textwidth]{images/image23.PNG}
+\includegraphics[width=0.7\textwidth]{images/image24.PNG}
+\end{center}
+\textbf{Solution Output:} Returns 4 users: Ananya Iyer (23), Meera Joshi (22), Devansh Mehta (24), and Riya Shah (21).
+
+
+\subsubsection{3. Find users with screen time greater than 150 minutes}
+\textbf{Problem:} Find users who spend more than 150 minutes on screen daily.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ screenTime: { $gt: 150 } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image31.PNG}
+\includegraphics[width=0.7\textwidth]{images/image32.PNG}
+\includegraphics[width=0.7\textwidth]{images/image33.PNG}
+\end{center}
+\textbf{Solution Output:} Returns 3 users: Meera Joshi (200 min), Devansh Mehta (180 min), and Riya Shah (250 min).
+
+\subsubsection{4. Update a user's bio and interests}
+\textbf{Problem:} Update Devansh's bio and add some of his interests.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.updateOne(
+  { username: "dev_coder" },
+  {
+    $set: {
+      bio: "Data Science Enthusiast",
+      interests: ["AI","ML","Python","NLP"]
+    }
+  }
+);
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.4\textwidth]{images/image4.PNG}
+\end{center}
+\textbf{Solution Output:} Successfully updated Devansh's document with modified bio and interests array.
+
+
+\subsubsection{5. Delete posts older than a specific date}
+\textbf{Problem:} Delete posts older than 22 days.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+const cutoff = new Date(Date.now() - 22*24*60*60*1000);
+db.posts.deleteMany({ createdAt: { $lt: cutoff } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.9\textwidth]{images/image5.PNG}
+\end{center}
+\textbf{Solution Output:} Deleted posts that were created more than 30 days ago.
+
+
+\subsection{Task 2.2: Data Filtering \& Sorting}
+\subsubsection{1. Find posts of type "reel" with more than 100 likes}
+\textbf{Problem:} Find reels that have received more than 100 likes.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.posts.find({ type: "reel", likes: { $gt: 100 } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image2211.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2212.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2213.PNG}
+\end{center}
+\textbf{Solution Output:} Returns 4 reels: Riya's fashion reel (510 likes), Meera's comedy reel (410 likes), Amit's travel reel (230 likes), and Priya's food reel (155 likes).
+
+
+\subsubsection{2. Sort users by followers count (descending)}
+\textbf{Problem:} Display users sorted by their follower count in descending order.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find().sort({ followersCount: -1 });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image2221.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2222.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2223.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2224.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2225.PNG}
+\includegraphics[width=0.7\textwidth]{images/image2226.PNG}
+\end{center}
+\textbf{Solution Output:} Users sorted from highest to lowest followers: Riya, Ananya, Amit, Devansh, Meera, Kavya, and Arjun.
+
+\subsubsection{3. Find users with specific interests}
+\textbf{Problem:} Find users interested in both "AI" and "ML".
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ interests: { $all: ["AI","ML"] } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image2231.PNG}
+\end{center}
+
+\textbf{Solution Output:} Returns 1 user: Devansh Mehta who has both interests.
+
+\subsubsection{4. Get posts from the last 30 days}
+\textbf{Problem:} Retrieve all posts created within the last 30 days.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+const last30 = new Date(Date.now() - 30*24*60*60*1000);
+db.posts.find({ createdAt: { $gte: last30 } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.4\textwidth]{images/image2241.PNG}
+\includegraphics[width=0.5\textwidth]{images/image2242.PNG}
+\includegraphics[width=0.4\textwidth]{images/image2243.PNG}
+\includegraphics[width=0.4\textwidth]{images/image2244.PNG}
+\includegraphics[width=0.4\textwidth]{images/image2245.PNG}
+\includegraphics[width=0.5\textwidth]{images/image2246.PNG}
+\includegraphics[width=0.5\textwidth]{images/image2247.PNG}
+\end{center}
+\textbf{Solution Output:} Returns all posts created within the specified timeframe.
+
+\subsubsection{5. Find inactive users}
+\textbf{Problem:} Find users who are not currently active.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ isActive: false });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.9\textwidth]{images/inactive.PNG}
+\end{center}
+\textbf{Solution Output:} No inactive users found as all sample users are set to active status.
+
+\section{Phase 3: Geospatial Queries}
+\subsection{Task 3.1: Location-Based Queries}
+\subsubsection{1. Create a 2dsphere index on user locations}
+\textbf{Problem:} Create geospatial index for location-based queries.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.createIndex({ location: "2dsphere" });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.9\textwidth]{images/image311.PNG}
+\end{center}
+\textbf{Solution Output:} Successfully created 2dsphere index on location field.
+
+\subsubsection{2. Find users within 100km radius of Ahmedabad}
+\textbf{Problem:} Find users located within 100 kilometers of Ahmedabad.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+const ahmedabad = { type: "Point", coordinates: [72.5714, 23.0225] };
+db.users.find({
+  location: {
+    $nearSphere: {
+      $geometry: ahmedabad,
+      $maxDistance: 100000
+    }
+  }
+});
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/ah1.PNG}
+\includegraphics[width=0.7\textwidth]{images/ahemdabad.PNG}
+\end{center}
+\textbf{Solution Output:} Returns users within 100km radius of Ahmedabad, including Meera from Ahmedabad.
+
+\subsubsection{3. Find the nearest user to a given coordinate}
+\textbf{Problem:} Find the closest user to coordinates [87.4, 32.8].
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({
+  location: {
+    $nearSphere: {
+      $geometry: { type: "Point", coordinates: [87.4, 32.8] }
+    }
+  }
+}).limit(1);
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/image51.PNG}
+\includegraphics[width=0.7\textwidth]{images/image52.PNG}
+\end{center}
+
+\subsubsection{4. Get users from multiple cities using \$in operator}
+\textbf{Problem:} Find users from Ahmedabad, and Bhavnagar cities.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+db.users.find({ "location.city": { $in: ["Ahmedabad","Bhavnagar"] } });
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/ab1.PNG}
+\includegraphics[width=0.52\textwidth]{images/ab2.PNG}
+\end{center}
+\textbf{Solution Output:} Returns 2 users: Meera (Ahmedabad), and Devansh (Bhavnagar).
+
+
+\subsubsection{5. Calculate distance between two users}
+\textbf{Problem:} Calculate distance between Priya and Meera.
+\textbf{Solution Code:}
+\begin{lstlisting}[language=JavaScript]
+const userA = db.users.findOne({ username: "ananya_foodie" });
+const userB = db.users.findOne({ username: "kavya_books" });
+
+db.users.aggregate([
+  { $geoNear: {
+    near: userA.location,
+    distanceField: "distanceInMeters",
+    spherical: true,
+    query: { _id: userB._id }
+  }},
+  { $project: { username: 1, distanceInMeters: 1 } }
+]);
+\end{lstlisting}
+
+\begin{center}
+\includegraphics[width=0.7\textwidth]{images/distance.PNG}
+\end{center}
+\textbf{Solution Output:} Returns the distance between the Ananya and Kavya in meters.
+
+
+\section{Design Decisions \& Implementation Details}
+\subsection{Schema Design Rationale}
+The database schema was designed with the following considerations:
+
+\begin{itemize}
+    \item \textbf{Users Collection:} Includes comprehensive user profile information with GeoJSON location format for geospatial queries
+    \item \textbf{Posts Collection:} Supports both posts and reels with engagement metrics and optional location data
+    \item \textbf{Followers Collection:} Simple relationship model to track following connections between users
+\end{itemize}
+
+\subsection{Index Strategy}
+Strategic indexes were created for:
+\begin{itemize}
+    \item Unique constraints on username and email
+    \item Geospatial queries on location fields
+    \item Performance optimization for common query patterns
+    \item Social network relationship queries
+\end{itemize}
+
+\subsection{Data Validation}
+Comprehensive schema validation ensures:
+\begin{itemize}
+    \item Data type integrity
+    \item Required field enforcement
+    \item Range validation for numeric fields
+    \item Proper GeoJSON format for location data
+\end{itemize}
+
+\section{Conclusion}
+This assignment successfully demonstrates the implementation of a complete MongoDB-based social media platform database. The solution covers all required aspects:
+
+\begin{itemize}
+    \item Proper NoSQL schema design with validation
+    \item Comprehensive CRUD operations
+    \item Advanced geospatial query capabilities
+    \item Performance-optimized indexing strategy
+    \item Real-world social media functionality
+\end{itemize}
+
+The UrbanWave database provides a solid foundation for a location-aware social media platform with robust data management capabilities and efficient query performance.
+
+\end{document}
